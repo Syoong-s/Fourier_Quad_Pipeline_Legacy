@@ -86,7 +86,7 @@ cp .env.example .env
 
 Edit `.env` and set:
 
-- `IMAGE_NAME=ghcr.io/<owner>/<repository>:gnu4.8.5`;
+- `IMAGE_NAME=ghcr.io/syoong-s/fourier_quad_pipeline_legacy:latest`;
 - `F77_SOURCE_HOST` to the absolute host path of `f77/` or `f77_Lite/`;
 - the astrometry catalog, source catalog, flat-field, and processing-data host
   paths;
@@ -169,6 +169,8 @@ cp f77pipeline.env.example f77pipeline.env
 
 Edit `f77pipeline.env` with the GHCR image, SIF destination, source/data mounts,
 MPI launch mode, and site modules. Then validate in order:
+
+*Note:* GHCR image is available as `ghcr.io/syoong-s/fourier_quad_pipeline_legacy:latest`.
 
 ```bash
 bash pull-sif.sh
