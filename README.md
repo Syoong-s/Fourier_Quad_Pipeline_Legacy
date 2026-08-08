@@ -185,6 +185,10 @@ OpenMPI launcher with the MPICH application unless compatibility has been
 validated for the site. See [the runner guide](f77_docker/runner/README.md) for
 configuration and multi-node launch details.
 
+## Manual for AI
+
+Here also provides a manual wraped as a codex/claude code plugin, which gives agent abilities to help you build environment, switch parameters and run pipeline. For more details, please refer to the [Codex/Claude Code Plugin](https://github.com/Syoong-s/FQLegacyAIManual).
+
 ## Documentation
 
 - [F77 source, parameters, Docker, and runner guide](F77_GUIDE.md)
