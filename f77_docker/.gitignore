@@ -1,0 +1,11 @@
+.env
+runner/f77pipeline.env
+runner/site-env.sh
+runner/*.site.slurm
+*.sif
+logs/
+sources/
+*.tar
+*.tar.gz
+*.tar.bz2
+*.tar.xz

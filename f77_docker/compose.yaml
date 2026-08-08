@@ -1,0 +1,36 @@
+services:
+  FourierQuad-F77:
+    image: ${IMAGE_NAME:-f77pipeline-dev:gnu4.8.5}
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-quay.io/rockylinux/rockylinux:8.10@sha256:e8a49c5403b687db05d4d67333fa45808fbe74f36e683cec7abb1f7d0f2338c6}
+        BUILD_JOBS: ${BUILD_JOBS:-4}
+        F77_UID: ${HOST_UID:-1000}
+        F77_GID: ${HOST_GID:-1000}
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    working_dir: /workspace/f77
+    stdin_open: true
+    tty: true
+    volumes:
+      - type: bind
+        source: ${F77_SOURCE_HOST}
+        target: /workspace/f77
+      - type: bind
+        source: ${ASTROMETRY_CAT_HOST}
+        target: ${ASTROMETRY_CAT_CONTAINER:-/data/catalogs/AstroDir}
+        read_only: true
+      - type: bind
+        source: ${SOURCE_CAT_HOST}
+        target: ${SOURCE_CAT_CONTAINER:-/data/catalogs/ExtSrcDir}
+        read_only: true
+      - type: bind
+        source: ${FLAT_PATH_HOST}
+        target: ${FLAT_PATH_CONTAINER:-/data/calib/FlatDir}
+        read_only: true
+      - type: bind
+        source: ${PROCESS_DATA_HOST}
+        target: ${PROCESS_DATA_CONTAINER:-/data/DataProcess}
+    environment:
+      PROCESS_DATA_CONTAINER: ${PROCESS_DATA_CONTAINER:-/data/DataProcess}

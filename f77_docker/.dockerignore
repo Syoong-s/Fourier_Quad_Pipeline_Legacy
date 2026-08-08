@@ -1,0 +1,12 @@
+.git
+.github
+.env
+runner/f77pipeline.env
+runner/site-env.sh
+*.sif
+*.log
+logs/
+sources/
+build/
+output/
+tmp/
