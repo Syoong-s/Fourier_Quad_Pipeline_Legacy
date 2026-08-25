@@ -69,6 +69,34 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         enddo
       enddo
 
+c ==========================================
+c Function: Apply the DQ mask before astrometry and defect merging
+c Method: Keep set_sig independent of DQ, then reject every nonzero
+c         DQ pixel from all later preprocessing stages.
+c ==========================================
+      if (proc_error.eq.0) then
+        write(c_chip,'(I2)') cid
+        call get_PREFIX_expo(IMAGE_FILE,PREFIX_e)
+        MASK_FILE=trim(DIR_OUTPUT)//'/dqmask/'//trim(PREFIX_e)
+     .  //'_'//trim(adjustl(c_chip))//'.fits'
+        call readimage(MASK_FILE,nxx,nyy,npx,npy,flat_weight)
+        if (flat_weight(1,1).lt.(-99990.0)) then
+          write(*,*) 'Error / cant find mask file!'
+          proc_error=1
+        elseif (nxx.ne.nx .or. nyy.ne.ny) then
+          write(*,*) 'Error / wrong size of DQ file!'
+          proc_error=1
+        endif
+        if (proc_error.eq.0) then
+          do i=1,nx
+            do j=1,ny
+              if (abs(flat_weight(i,j)).gt.1e-7) then
+                weight(i,j)=0
+              endif
+            enddo
+          enddo
+        endif
+      endif
 c------------------------------------------------------
 
       nxc=nx/2
@@ -109,37 +137,6 @@ c------------------------------------------------------
 
 
 c--------------------------------------------------------------
-
-c ==========================================
-c Function: Apply the DQ mask before astrometry and defect merging
-c Method: Keep set_sig independent of DQ, then reject every nonzero
-c         DQ pixel from all later preprocessing stages.
-c ==========================================
-      if (proc_error.eq.0) then
-        write(c_chip,'(I2)') cid
-        call get_PREFIX_expo(IMAGE_FILE,PREFIX_e)
-        MASK_FILE=trim(DIR_OUTPUT)//'/dqmask/'//trim(PREFIX_e)
-     .  //'_'//trim(adjustl(c_chip))//'.fits'
-        call readimage(MASK_FILE,nxx,nyy,npx,npy,flat_weight)
-        if (flat_weight(1,1).lt.(-99990.0)) then
-          write(*,*) 'Error / cant find mask file!'
-          proc_error=1
-        elseif (nxx.ne.nx .or. nyy.ne.ny) then
-          write(*,*) 'Error / wrong size of DQ file!'
-          proc_error=1
-        endif
-        if (proc_error.eq.0) then
-          do i=1,nx
-            do j=1,ny
-              if (abs(flat_weight(i,j)).gt.1e-7) then
-                weight(i,j)=0
-                normap(i,j)=-1000.
-              endif
-            enddo
-          enddo
-        endif
-      endif
-
       call get_PREFIX(IMAGE_FILE,PREFIX)
       filename=trim(DIR_OUTPUT)//'/astrometry/'
      .//trim(PREFIX)//'_astro.dat'
