@@ -71,8 +71,6 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 c ==========================================
 c Function: Apply the DQ mask before astrometry and defect merging
-c Method: Keep set_sig independent of DQ, then reject every nonzero
-c         DQ pixel from all later preprocessing stages.
 c ==========================================
       if (proc_error.eq.0) then
         write(c_chip,'(I2)') cid
