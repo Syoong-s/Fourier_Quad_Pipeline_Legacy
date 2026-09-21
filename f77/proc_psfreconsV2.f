@@ -33,9 +33,14 @@
       return
       end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Fit dataset-global PCA residual models for one CCD
+c Method: Read aligned residuals and write global PCA component products
+c ==========================================
       subroutine chip_res_pca_fit(ichip,nexpo)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
       include 'cust_para.inc'
 
       integer u,v,ierror,ntot,i,nc
@@ -47,7 +52,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       integer fit_num
 
       character*(strl) DIR_OUTPUT, IMAGE_FILE(NMAX_cHIP)
-      character*(strl) PREFIX,PREFIX_e,filename
+      character*(strl) PREFIX,PREFIX_e,filename,product_name
       character*(2) c_chip
       character*(1) c_bx, c_by
 
@@ -91,10 +96,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       do i=1,nexpo
 
         call get_image_list(i,IMAGE_FILE,nc,DIR_OUTPUT)
-        call get_PREFIX_expo(IMAGE_FILE(1),PREFIX_e)
-        write(c_chip,'(I2)') ichip
-        filename=trim(DIR_OUTPUT)//'/starxy/'//trim(PREFIX_e)//
-     .'_'//trim(adjustl(c_chip))//'_star_xy.dat'
+        call fq_expo_ccd_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_XY,
+     .    ichip,'_star_xy.dat',filename)
         open(unit=10,file=filename,status='old',action='read'
      ,,iostat=ierror)
         if (ierror.ne.0) then
@@ -111,8 +115,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
         nn1=ns*len_s
         nn2=ns*(int(nstar/len_s)+1)
-        filename=trim(DIR_OUTPUT)//'/fits_psfresi/'//trim(PREFIX_e)
-     .//'_'//trim(adjustl(c_chip))//'_psf_p_resi.fits' 
+        call fq_expo_ccd_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_PSF_RESI,
+     .    ichip,'_psf_p_resi.fits',filename)
         call read_stamps(nstar,1,nstar,ns,ns,psf_residual
      .,nn1,nn2,filename)
 
@@ -185,8 +190,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       
       call get_image_list(1,IMAGE_FILE,nc,DIR_OUTPUT)
       write(c_chip,100) ichip
-      filename = trim(DIR_OUTPUT)//'/dat_pcs/'//'pcs_ccd'//trim(c_chip)
-     .//'.dat'
+      product_name='pcs_ccd'//trim(c_chip)//'.dat'
+      call fq_base_product_path(DIR_OUTPUT,DIR_PCS,
+     .  product_name,filename)
       open(unit=30,file=filename,status='replace',iostat=ierror)
       rewind 30
       do k = 1,nsns
@@ -205,11 +211,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       ntot = 0
       do i=1,nexpo
         call get_image_list(i,IMAGE_FILE,nc,DIR_OUTPUT)
-        call get_PREFIX_expo(IMAGE_FILE(1),PREFIX_e)
-
-        write(c_chip,'(I2)') ichip
-        filename=trim(DIR_OUTPUT)//'/starxy/'//trim(PREFIX_e)//
-     .            '_'//trim(adjustl(c_chip))//'_star_xy.dat'
+        call fq_expo_ccd_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_XY,
+     .    ichip,'_star_xy.dat',filename)
         open(unit=10,file=filename,status='old',action='read'
      .,iostat=ierror)
         if (ierror.ne.0) then
@@ -225,8 +229,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         allocate(psf_residual(nstar,ns,ns))
         nn1=ns*len_s
         nn2=ns*(int(nstar/len_s)+1)
-        filename=trim(DIR_OUTPUT)//'/fits_psfresi/'//trim(PREFIX_e)
-     .            //'_'//trim(adjustl(c_chip))//'_psf_p_resi.fits'
+        call fq_expo_ccd_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_PSF_RESI,
+     .    ichip,'_psf_p_resi.fits',filename)
          
         call read_stamps(nstar,1,nstar,ns,ns,psf_residual,
      .                    nn1,nn2,filename)
@@ -288,8 +293,10 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 99        write(c_bx,200) j
           write(c_by,200) k
-      filename = trim(DIR_OUTPUT)//'/dat_pcs/'//'coeff_ccd'
-     .//trim(c_chip)//'_'//trim(c_bx)//trim(c_by)//'.dat'
+          product_name='coeff_ccd'//trim(c_chip)//'_'//trim(c_bx)
+     .      //trim(c_by)//'.dat'
+          call fq_base_product_path(DIR_OUTPUT,DIR_PCS,
+     .      product_name,filename)
           open(unit=20,file=filename,status='replace',iostat=ierror)
           rewind 20
           if (fit_num .le. (npp6th+10)) then
@@ -785,9 +792,14 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end  
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Evaluate PCA-corrected residual diagnostics
+c Method: Read aligned fit products and write the V2 exposure comparison
+c ==========================================
       subroutine Plot_residuals_v2(iexpo)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
       include 'cust_para.inc'
 
       integer iexpo,nchip,ierror
@@ -805,10 +817,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       real res_factor
 
       call get_image_list(iexpo,IMAGE_FILE,nchip,DIR_OUTPUT)
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-
-      filename=trim(DIR_OUTPUT)//'/rescale/'//trim(PREFIX)//
-     .'_factor.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_RESCALE,
+     .  '_factor.dat',filename)
       open(unit=91,file=filename,status='old',iostat=ierror)
       if (ierror.ne.0) then
         write(*,*) 'cannot find rescale factor file' 
@@ -818,13 +829,15 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       read(91,*) res_factor
       close(91)
       
-      filename=trim(DIR_OUTPUT)//'/dat_starcomp/'//trim(PREFIX)//
-     .'_star_comp_expo_v2.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_COMP_V2,
+     .  '_star_comp_expo_v2.dat',filename)
       open(unit=11,file=trim(filename),status='replace')
       rewind 11
 
-      filename=trim(DIR_OUTPUT)//'/result/'//trim(PREFIX)//
-     .'_star_comp_expo.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_COMP,
+     .  '_star_comp_expo.dat',filename)
       open(unit=10,file=filename,status='old',action='read'
      .,iostat=ierror)
       if (ierror.ne.0) then
@@ -847,9 +860,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
           cycle
         endif
 
-        call get_PREFIX(IMAGE_FILE(ichip),PREFIXc)
-        filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIXc)
-     . //'_PSF_coe_local.dat'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_PSF_FIT,
+     .    '_PSF_coe_local.dat',filename)
         open(unit=13,file=filename,status='old',iostat=ierror)
         rewind 13
         read(13,*) nstar_coe,status

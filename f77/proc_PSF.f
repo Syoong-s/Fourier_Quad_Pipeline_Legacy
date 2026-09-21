@@ -33,10 +33,15 @@
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Load PSF candidates and their exposure astrometry
+c Method: Read aligned candidate metadata and power stamps for each chip
+c ==========================================
       subroutine read_in_candidates(nchip,IMAGE_FILE,DIR_OUTPUT
      .,nc,p_chip)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip,nc
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
@@ -56,8 +61,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       real chi_d(NMAX_cHIP,nstar_max,nstar_max)
       common /chi_d_pass/ chi_d
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      headname=trim(DIR_OUTPUT)//'/astrometry/'//trim(PREFIX)//'.head'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_HEAD,
+     .  '.head',headname)
 
       nc=0
       do k=1,nchip
@@ -81,9 +87,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         p_chip(nc,3)=xx
         p_chip(nc,4)=yy
 
-        call get_PREFIX(IMAGE_FILE(k),PREFIX)
-        PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-        filename=trim(PREFIX)//'_star_can_info.dat'
+        call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_STAR_CAN_INFO,
+     .    '_star_can_info.dat',filename)
         open(unit=10,file=filename,status='old',iostat=ierror)
         rewind 10
         if (ierror.ne.0) then
@@ -105,7 +111,9 @@ c        read(10,*) 'ig xp yp SNR'
         if (nstar(k).gt.0) then
           nn1=ns*len_s
           nn2=ns*(int(nstar(k)/len_s)+1)
-          filename=trim(PREFIX)//'_star_can_power.fits'
+          call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_STAR_CAN_P,
+     .      '_star_can_power.fits',filename)
           call read_stamps(nstar_max,1,nstar(k),ns,ns,star
      .,nn1,nn2,filename)
 
@@ -338,10 +346,15 @@ c        endif
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Write exposure-level PSF diagnostics
+c Method: Aggregate selected stars into aligned output products
+c ==========================================
       subroutine plot_stars(nchip,IMAGE_FILE
      .,DIR_OUTPUT,nc,p_chip)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip,nc
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
@@ -364,10 +377,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       common /chi_d_pass/ chi_d
 
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-
-      filename=trim(PREFIX)//'_star_info_expo.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_INFO,
+     .  '_star_info_expo.dat',filename)
       open(unit=10,file=filename,status='replace')
       rewind 10
       write(10,*) '# ichip nstar FWHM e1 e2 chi_d'
@@ -412,21 +424,28 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       enddo
 
-      ! write(*,*) trim(PREFIX),' total no. of stars:',ntot
+      ! write(*,*) trim(IMAGE_FILE(1)),' total no. of stars:',ntot
       close(10)
 
 
       call draw_shear_expo(nm,PSFmap,nchip,NMAX_cHIP,nc,p_chip
      .,NMAX_cHIP*nstar_max,ntot,sk,200.,1.)
-      filename=trim(PREFIX)//'_PSF_source.fits'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_PSF_SRC,
+     .  '_PSF_source.fits',filename)
       call writeimage(filename,nm,nm,nm,nm,PSFmap)
 
       return
       end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Fit local PSF models for every chip
+c Method: Read aligned star power and route fit diagnostics
+c ==========================================
       subroutine make_PSF_local_fit(nchip,IMAGE_FILE,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
       include 'cust_para.inc'
 
       integer nchip
@@ -453,15 +472,16 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       character*(2) ccd_id
       real,allocatable :: poly_cochi2(:)
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX_e)
-      filename=trim(DIR_OUTPUT)//'/result/'//trim(PREFIX_e)//
-     .'_star_comp_expo.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_COMP,
+     .  '_star_comp_expo.dat',filename)
       open(unit=90,file=filename,status='replace')
       rewind 90
 
       if (PSF_Ms.eq.1) then 
-        filename=trim(DIR_OUTPUT)//'/rescale/'//trim(PREFIX_e)//
-     .'_factor.dat'
+        call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_RESCALE,
+     .    '_factor.dat',filename)
         open(unit=91,file=filename,status='old',iostat=ierror)
         if (ierror.ne.0) then
           write(*,*) 'cannot find rescale factor file' 
@@ -475,19 +495,19 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       ntot=0
       do k=1,nchip
         nums=0
-        call get_PREFIX(IMAGE_FILE(k),PREFIX)
-
         if (nstar(k).gt.0) then
           nn1=ns*len_s
           nn2=ns*(int(nstar(k)/len_s)+1)
-          filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-     .//'_star_can_power.fits'
+          call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_STAR_CAN_P,
+     .      '_star_can_power.fits',filename)
           call read_stamps(nstar_max,1,nstar(k),ns,ns,star
      .,nn1,nn2,filename)
         endif
         
-        filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)//
-     .'_PSF_coe_local.dat'
+        call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_PSF_FIT,
+     .    '_PSF_coe_local.dat',filename)
         open(unit=10,file=filename,status='replace')
         rewind 10
 
@@ -510,8 +530,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         if (PSF_Ms.eq.1) then
           call get_chip_id(IMAGE_FILE(k),chip_index)
           write(ccd_id,'(I2)') chip_index
-          filename=trim(DIR_OUTPUT)//'/starxy/'//trim(PREFIX_e)//
-     .'_'//trim(adjustl(ccd_id))//'_star_xy.dat'
+          call fq_expo_ccd_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_STAR_XY,
+     .      chip_index,'_star_xy.dat',filename)
           open(unit=20,file=filename,status='replace')
           rewind 20
         endif
@@ -568,8 +589,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
           if (PSF_Ms.eq.1) then
             nn1=ns*len_s
             nn2=ns*(int(nums/len_s)+1)
-            filename=trim(DIR_OUTPUT)//'/fits_psfresi/'//trim(PREFIX_e)
-     .//'_'//trim(adjustl(ccd_id))//'_psf_p_resi.fits' 
+            call fq_expo_ccd_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .        DIR_PSF_RESI,chip_index,'_psf_p_resi.fits',filename)
             call write_stamps(nstar_max,1,nums,ns,ns,psf_residual
      .,nn1,nn2,filename)
           endif
@@ -589,9 +610,14 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build hybrid local PSF models for every chip
+c Method: Fit candidates and write coefficient and model products
+c ==========================================
       subroutine make_PSF_hybrid(nchip,IMAGE_FILE,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
@@ -611,9 +637,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       integer nn1,nn2
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      filename=trim(DIR_OUTPUT)//'/result/'//trim(PREFIX)//
-     .'_star_comp_expo.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_COMP,
+     .  '_star_comp_expo.dat',filename)
       open(unit=90,file=filename,status='replace')
       rewind 90
 
@@ -621,16 +647,17 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       do k=1,nchip
         nums=0
 
-        call get_PREFIX(IMAGE_FILE(k),PREFIX)
         nn1=ns*len_s
         nn2=ns*(int(nstar(k)/len_s)+1)
-        filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-     .//'_star_can_power.fits'
+        call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_STAR_CAN_P,
+     .    '_star_can_power.fits',filename)
         call read_stamps(nstar_max,1,nstar(k),ns,ns,star
      .,nn1,nn2,filename)
 
-        filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)//
-     .'_PSF_coe_local.dat'
+        call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_PSF_FIT,
+     .    '_PSF_coe_local.dat',filename)
         open(unit=10,file=filename,status='replace')
         rewind 10
 
@@ -696,9 +723,9 @@ c------------------------------------------------------------------
 
           nx=(nx/step_psf+1)*step_psf
           ny=(ny/step_psf+1)*step_psf
-          call get_PREFIX(IMAGE_FILE(k),PREFIX)
-          filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)//
-     .'_PSF_local.fits'
+          call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_PSF_LOCAL,
+     .      '_PSF_local.fits',filename)
           call writeimage(filename,nx,ny,npx,npy,psfmap)
 
 c------------------------------------------------------------------
@@ -723,9 +750,9 @@ c------------------------------------------------------------------
           psfmap(step_psf,step_psf)=-100.
           nx=3*step_psf
           ny=3*step_psf
-          call get_PREFIX(IMAGE_FILE(k),PREFIX)
-          filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)//
-     .'_PSF_local.fits'
+          call fq_chip_product_path(IMAGE_FILE(k),DIR_OUTPUT,
+     .  DIR_PSF_LOCAL,
+     .      '_PSF_local.fits',filename)
           call writeimage(filename,nx,ny,npx,npy,psfmap)
 
           write(10,*) nums,-1
@@ -1108,9 +1135,14 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Collect exposure-level star power stamps
+c Method: Read every chip product and write one exposure-level product
+c ==========================================
       subroutine plot_star_expo(nchip,IMAGE_FILE,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
@@ -1143,9 +1175,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         nn1=ns*len_s
         nn2=ns*(int(nstar(ichip)/len_s)+1)
 
-        call get_PREFIX(IMAGE_FILE(ichip),PREFIX)
-        PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-        filename=trim(PREFIX)//'_star_can_power.fits'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_STAR_CAN_P,
+     .    '_star_can_power.fits',filename)
         call read_stamps(nstar_max,1,nstar(ichip),ns,ns
      .,star,nn1,nn2,filename)
         do i=1,nstar(ichip)
@@ -1162,13 +1194,12 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         start = start + nstar(ichip)
       enddo
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-
       if (ntot.gt.0) then 
         nn1=ns*len_sam
         nn2=ns*(int(min(ntot,nmax_stamp)/len_sam)+1)
-        filename=trim(PREFIX)//'_star_power_expo.fits'
+        call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_P,
+     .    '_star_power_expo.fits',filename)
         call write_stamps_2(nstar_max*NMAX_cHIP,w,ns,ns,star_test
      .,opt,1,nn1,nn2,filename)
       endif
@@ -1182,6 +1213,7 @@ c ==========================================
       subroutine save_rescale_factor(nchip,IMAGE_FILE,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
       include 'cust_para.inc'
 
       integer nchip,ichip,i
@@ -1211,9 +1243,9 @@ c ==========================================
       else
         summ = 1.0
       endif
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      filename=trim(DIR_OUTPUT)//'/rescale/'//trim(PREFIX)//
-     .'_factor.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_RESCALE,
+     .  '_factor.dat',filename)
       open(unit=10,file=filename,status='replace')
       rewind 10
       write(10,*) summ
@@ -1221,4 +1253,3 @@ c ==========================================
       return
       end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-

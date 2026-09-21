@@ -23,45 +23,93 @@ Clone the repository with the URL shown by GitHub's **Code** button, or download
 the selected source and Docker archives from the repository's **Releases**
 page. The Docker quick start requires both the source tree and `f77_docker/`.
 
-## Quick start with Docker
+## Quick Start
 
-The published image is the easiest way to obtain the legacy GNU Fortran, MPICH,
-CFITSIO, and LAPACK stack. The image contains the toolchain only; your selected
-source directory and data are mounted when the container starts.
+### 1. Prepare compliant external catalogs
 
-Requirements: Docker with Compose support and an x86-64 Linux host.
+#### Gaia catalog
 
-### 1. Prepare an isolated processing directory
+The Gaia catalog supplies accurate RA/Dec reference positions for object
+matching and astrometric calibration. It must cover the actual Science-image
+footprint and be stored directly under the configured `ASTROMETRY_CAT`
+directory. Every consumed tile starts with one header line; subsequent rows use
+the first two numeric fields as RA and Dec. Rows may be comma- or
+whitespace-separated and additional fields are ignored.
+
+
+**Filename convention:**
+
+- `|Dec| < 80°`: `gaia_<p|m><D>_<RR>.cat`, where
+  `D = floor(|Dec| / 10) + 1` (1-8) and `RR = floor(RA / 10)` (00-35,
+  zero-padded).
+- `|Dec| >= 80°`: `gaia_<p|m>9.cat`, without an RA suffix.
+- `p` denotes nonnegative Dec; `m` denotes negative Dec.
+- Each file must contain one header line.
+
+> Examples:
+> 1. gaia_p1_00.cat covers `0° <= RA < 10°` and `0° <= Dec < 10°`
+> 2. gaia_m3_12.cat covers `120° <= RA < 130°` and `-30° < Dec <= -20°`
+> 3. gaia_p9.cat covers `0° <= RA < 360°` and `80° <= Dec <= 90°`
+
+*To ensure that stars can still be selected for exposures located at the edges of the 10°×10° grid, it is recommended to expand the upper and lower Dec coverage limits of a single star catalog by 2° based on the aforementioned limits, and expand the upper and lower RA limits by 2°, 4°, and 6° within the 0°, 30°, and 60° ranges, respectively.*
+
+#### External source catalog
+
+The minimum schema is intentionally survey- and band-independent:
+
+| Field | Meaning |
+|---|---|
+| `ra` | Right Ascension. |
+| `dec` | Declination. |
+| `zp` | The catalog `zp` quantity consumed by the selected Pipeline configuration. |
+| One observed-band magnitude | A magnitude in any one band used by the selected analysis. |
+
+Additional colors, redshifts, object classes, shapes, and flags may be retained,
+but they are not part of this minimum input contract. 
+
+**Filename convention:**
+
+- 1° × 1° tile:
+  `<SOURCE_CAT_TILE_PREFIX>RA_<RA0>_<RA1>_Dec_<Dec0>_<Dec1>.dat`.
+- The default `SOURCE_CAT_TILE_PREFIX` in `config/pathconfig.hpp` is `extern_`;
+  the prefix does not include `RA_`.
+- RA boundaries use three digits. Dec boundaries use `p` or `m` plus a two-digit
+  absolute value. Each upper boundary is one degree above its lower boundary.
+- Each file must contain one header line.
+
+> Example:
+> `extern_RA_123_124_Dec_m05_m04.dat` covers `123° <= RA < 124°` and
+> `-5° <= Dec < -4°`.
+
+### 2. Prepare an isolated processing directory
 
 Do not run the pipeline directly against an irreplaceable raw-data tree. Output
 paths are derived from the FITS paths, and existing intermediate files may be
 replaced. Create a writable processing tree and place or link the input FITS and
 DQ-mask files below it.
 
-You may use two scripts to prepare the input data:
-- [`Decompose Images`](Tools/gen_cat_mpi_ver2.6.py)
-- [`Decompose Masks`](Tools/decom_mask_fz_v2.6.py)
+You may use initializer to prepare the input data:
+[init_program](init_program/init_program.py)
 
-After preparation, the input data must be organized into a directory tree with 
-the top-level exposure list contains one exposure-list path and chip count per
-line:
+After preparation, use the WFST-compatible dataset tree. The top-level exposure
+list contains one per-exposure list path and chip count per line:
 
 ```text
-"/data/DataProcess/run/g2019/stamps/exposure_001.list" 5
+"/data/DataProcess/run/g2019/expolists/exposure_001.list" 2
 ```
 
 Each per-exposure list contains one Science FITS path per line:
 
 ```text
-/data/DataProcess/run/g2019/science/exposure_001_1.fits
-/data/DataProcess/run/g2019/science/exposure_001_2.fits
+/data/DataProcess/run/g2019/science/exposure_001/exposure_001_1.fits
+/data/DataProcess/run/g2019/science/exposure_001/exposure_001_2.fits
 ```
 
 When using a container, every path inside these lists must be a container path,
 not its host equivalent. See the [HPC tutorial](f77_docker/runner/README-CN.md)
 for a complete safe data-tree example.
 
-### 2. Configure the pipeline
+### 3. Configure the pipeline
 
 In the selected source directory, edit `para.inc` before compiling:
 
@@ -75,7 +123,42 @@ The default `PROCESS_stage = 2*3*5*7*11*13*17*19*23` runs all nine stages.
 Remove a stage's prime factor to skip that stage; the mapping is documented in
 [F77_GUIDE.md](F77_GUIDE.md#pipeline-stages).
 
-### 3. Configure the container mounts
+### 4. Build and run
+
+#### Build from source
+
+Environment prerequisites:
+
+| Environment | Prerequisite | Notes |
+|---|---|---|
+| Regular Linux | 64-bit Linux; GNU Fortran toolchain with `mpif77`; MPICH or compatible Fortran MPI; CFITSIO; repository-provided `FFTPACK.f`; BLAS / LAPACK | GNU Fortran 4.8.5; MPICH 4.1.2; CFITSIO 4.3.1; LAPACK 3.8.0 |
+| HPC / Slurm | Regular Linux prerequisites; shared filesystem; Slurm; MPI-compatible launch; Apptainer / Singularity | GNU Fortran 4.8.5; MPICH 4.1.2; CFITSIO 4.3.1; LAPACK 3.8.0 |
+
+
+After configuring `para.inc`, build and run from the repository root:
+
+```bash
+export SCIENCE_PREFIX=/path/to/scientific-stack
+make -C f77 \
+  LAPACK_LIB_DIR="$SCIENCE_PREFIX/lib" \
+  CFITSIO_LIB_DIR="$SCIENCE_PREFIX/lib" \
+  FFLAGS='-mcmodel=medium -w -fallow-argument-mismatch'
+mpirun -np 4 ./f77/Fourier_Quad_Pipe \
+  /path/to/expo_list.list
+```
+
+Replace `f77` with `f77_Lite` for the Lite variant. If CFITSIO does not provide
+`libcfitsio.so` at that location, pass its full path as `CFITSIO_LIB`.
+
+#### Start with Docker
+
+The published image is the easiest way to obtain the legacy GNU Fortran, MPICH,
+CFITSIO, and LAPACK stack. The image contains the toolchain only; your selected
+source directory and data are mounted when the container starts.
+
+Requirements: Docker with Compose support and an x86-64 Linux host.
+
+##### Configure the container mounts
 
 From the repository root:
 
@@ -95,7 +178,7 @@ Edit `.env` and set:
 The `*_CONTAINER` catalog paths in `.env` must exactly match the strings in
 `para.inc`.
 
-### 4. Compile and run
+##### Compile and run
 
 Pull the published image and enter the container:
 
@@ -119,45 +202,7 @@ Adjust the rank count for the number of exposures and available resources. The
 pipeline dynamically assigns exposures to MPI ranks; chips within one exposure
 are processed sequentially.
 
-### 5. Find the results
-
-For each dataset, the main products are written below the directory derived
-from its FITS paths:
-
-- `result/<EXPOSURE>_all.cat`: combined per-exposure shear catalog;
-- `expo_info.dat`: exposure-level diagnostics;
-- `astrometry/`, `stamps/`, `rescale/`, and related directories: intermediate
-  products used by later stages.
-
-Check the program output for missing catalog tiles, invalid chips, and PSF
-quality failures before using the shear catalogs scientifically.
-
-## Build from source
-
-Use this route when a compatible scientific stack is already installed.
-
-Required software:
-
-- GNU Fortran and MPI with `mpif77`;
-- CFITSIO;
-- LAPACK and BLAS;
-- GNU Make.
-
-After configuring `para.inc`, build and run from the repository root:
-
-```bash
-export SCIENCE_PREFIX=/path/to/scientific-stack
-make -C f77 \
-  LAPACK_LIB_DIR="$SCIENCE_PREFIX/lib" \
-  CFITSIO_LIB_DIR="$SCIENCE_PREFIX/lib"
-mpirun -np 4 ./f77/Fourier_Quad_Pipe \
-  /path/to/expo_list.list
-```
-
-Replace `f77` with `f77_Lite` for the Lite variant. If CFITSIO does not provide
-`libcfitsio.so` at that location, pass its full path as `CFITSIO_LIB`.
-
-## Run on a Slurm cluster
+##### Alternative runner for HPC
 
 An Apptainer/Singularity runner is included for systems where Docker is not
 available on compute nodes:
@@ -184,6 +229,18 @@ Pin `OCI_IMAGE_URI` by digest for production runs. Do not combine a host
 OpenMPI launcher with the MPICH application unless compatibility has been
 validated for the site. See [the runner guide](f77_docker/runner/README.md) for
 configuration and multi-node launch details.
+
+
+### 5. Find the results
+
+For each dataset, the main products are written below the directory derived
+from its FITS paths:
+
+- `result/<EXPOSURE>_all.cat`: combined per-exposure shear catalog;
+- `expo_info.dat`: global diagnostics beside the top-level exposure list;
+
+Check the program output for missing catalog tiles, invalid chips, and PSF
+quality failures before using the shear catalogs scientifically.
 
 ## Manual for AI
 

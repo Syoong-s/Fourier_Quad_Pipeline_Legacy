@@ -1,0 +1,43 @@
+c ==========================================
+c Configuration: C++-compatible process_main product directories
+c Method: Mirror OutputLayout names exactly, including letter case
+c ==========================================
+      character*40 DIR_DQ,DIR_NORM,DIR_CAT_ORIG
+      character*40 DIR_STAR_CAN_INFO,DIR_STAR_CAN
+      character*40 DIR_STAR_CAN_N,DIR_STAR_CAN_P
+      character*40 DIR_SRC_INFO,DIR_SRC,DIR_NOISE,DIR_SRC_P
+      character*40 DIR_PSF_FIT,DIR_PSF_LOCAL,DIR_SHEAR
+      character*40 DIR_STAR_XY,DIR_PSF_RESI,DIR_ASTRO_DATA
+      character*40 DIR_ASTRO_HEAD,DIR_ASTRO_CHECK
+      character*40 DIR_STAR_INFO,DIR_STAR_P,DIR_PSF_SRC
+      character*40 DIR_EXPO_INFO,DIR_STAR_COMP,DIR_RESCALE
+      character*40 DIR_PCS,DIR_STAR_COMP_V2,DIR_RESULT
+
+      parameter (DIR_DQ='dqmask')
+      parameter (DIR_NORM='stamps/Norm')
+      parameter (DIR_CAT_ORIG='stamps/cat_Orig')
+      parameter (DIR_STAR_CAN_INFO='stamps/dat_StarCanInfo')
+      parameter (DIR_STAR_CAN='stamps/fits_StarCan')
+      parameter (DIR_STAR_CAN_N='stamps/fits_StarCanN')
+      parameter (DIR_STAR_CAN_P='stamps/fits_StarCanP')
+      parameter (DIR_SRC_INFO='stamps/dat_SrcInfo')
+      parameter (DIR_SRC='stamps/fits_Src')
+      parameter (DIR_NOISE='stamps/fits_Noise')
+      parameter (DIR_SRC_P='stamps/fits_SrcP')
+      parameter (DIR_PSF_FIT='stamps/dat_PsfFit')
+      parameter (DIR_PSF_LOCAL='stamps/fits_PsfLocal')
+      parameter (DIR_SHEAR='stamps/dat_Shear')
+      parameter (DIR_STAR_XY='stamps/dat_StarXY')
+      parameter (DIR_PSF_RESI='stamps/fits_PsfResi')
+      parameter (DIR_ASTRO_DATA='astrometry/dat_Astro')
+      parameter (DIR_ASTRO_HEAD='astrometry/Head')
+      parameter (DIR_ASTRO_CHECK='astrometry/dat_Chk')
+      parameter (DIR_STAR_INFO='stamps/dat_StarInfo')
+      parameter (DIR_STAR_P='stamps/fits_StarP')
+      parameter (DIR_PSF_SRC='stamps/fits_PsfSrc')
+      parameter (DIR_EXPO_INFO='stamps/dat_ExpoInfo')
+      parameter (DIR_STAR_COMP='stamps/dat_StarComp')
+      parameter (DIR_RESCALE='stamps/dat_Rescale')
+      parameter (DIR_PCS='stamps/dat_Pcs')
+      parameter (DIR_STAR_COMP_V2='stamps/dat_StarCompV2')
+      parameter (DIR_RESULT='result')

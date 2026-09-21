@@ -18,6 +18,7 @@ the C++ pipeline see [`README.md`](README.md) and [`CPP_GUIDE.md`](CPP_GUIDE.md)
 |---|---|
 | `main.f` | Main program entry point. Initializes MPI, reads the exposure list, and dispatches pipeline stages. |
 | `para.inc` | Master parameter file. Controls image dimensions, stage selection (`PROCESS_stage`), catalog paths, PSF order, stamp size, thresholds, and catalog column indices. |
+| `path_layout.inc` | WFST-compatible product-directory contract used by the full `f77/` pipeline. |
 | `cust_para.inc` | Custom parameters for CCD geometry and PCA PSF decomposition. |
 | `sig_para.inc` | F6 mode-bar noise-plane estimator parameters. |
 | `pre_process.f` | **Stage 1**: flat-field, mask handling, background/noise estimation. |
@@ -43,9 +44,11 @@ the C++ pipeline see [`README.md`](README.md) and [`CPP_GUIDE.md`](CPP_GUIDE.md)
 
 #### `f77_Lite/` — Simplified Fortran 77 pipeline
 
-Identical file set to `f77/` except `00_psf_module.f` is absent (PCA PSF
+Closely follows `f77/`, but `00_psf_module.f` is absent (PCA PSF
 reconstruction is removed). All eight compile-time switches are frozen to
-production values and dead-code branches are physically removed.
+production values and dead-code branches are physically removed. The
+WFST-compatible I/O migration documented below applies to `f77/`; `f77_Lite/`
+continues to use its existing legacy layout.
 
 
 ## Pipeline Stages
@@ -91,6 +94,27 @@ All compile-time parameters live in three include files:
 > Paths such as `ASTROMETRY_CAT`, `SOURCE_CAT`, and `FLAT_PATH` must match the
 > container mount paths defined in the Docker `.env` files.
 
+`SOURCE_CAT_TILE_PREFIX` controls the external source-catalog tile basename.
+Its default is `extern_`, matching the WFST initializer and `process_extcat`.
+
+
+## Dataset Structure
+
+```text
+<dataset>/
+├── science/<exposure>/<chip>.fits
+├── dqmask/<exposure>/<exposure>_<CCDNUM>.fits
+├── expolists/<exposure>.list
+├── astrometry/{Head,dat_Chk,dat_Astro}/...
+├── stamps/
+│   ├── {Norm,cat_Orig,dat_StarCanInfo,fits_StarCan}/<exposure>/...
+│   ├── {fits_StarCanN,fits_StarCanP,dat_SrcInfo,fits_Src}/<exposure>/...
+│   ├── {fits_Noise,fits_SrcP,dat_PsfFit,fits_PsfLocal}/<exposure>/...
+│   ├── {dat_Shear,dat_StarXY,fits_PsfResi}/<exposure>/...
+│   └── {dat_StarInfo,fits_StarP,fits_PsfSrc,dat_ExpoInfo}/...
+└── result/<exposure>_all.cat
+```
+
 
 ## Building from Source
 
@@ -112,23 +136,29 @@ make LAPACK_LIB_DIR=/path/to/lapack/lib \
      CFITSIO_LIB_DIR=/path/to/cfitsio/lib
 ```
 
+Local verification for this I/O migration used GNU Fortran 15.2.0 through
+Open MPI 5.0.10, CFITSIO 4.6.4, and LAPACK/BLAS 3.11.0. Modern GNU Fortran
+requires the compatibility override below for pre-existing FFTPACK implicit
+argument mismatches:
+
+```bash
+export SCIENCE_PREFIX=/path/to/scientific-stack
+make FC=mpifort \
+     FFLAGS='-mcmodel=medium -w -fallow-argument-mismatch' \
+     LAPACK_LIB_DIR="$SCIENCE_PREFIX/lib" \
+     CFITSIO_LIB_DIR="$SCIENCE_PREFIX/lib"
+```
+
+On the production cluster, load the site MPI/GNU Fortran, CFITSIO, and
+LAPACK/BLAS modules (or use the documented container stack) and keep the same
+relative build and run commands.
+
 
 ### Running the pipeline
 
 ```bash
-mpirun -np <N> ./Fourier_Quad_Pipe <EXPO_LIST>                 # Fortran
-mpirun -np <N> ./Fourier_Quad_Pipe --expo-list <EXPO_LIST>     # C++ Standard/Lite main only
-mpirun -np <N> ./Fourier_Quad_Pipe --run-main false --run-rearr true --expo-list <EXPO_LIST>
+mpirun -np <N> ./Fourier_Quad_Pipe <EXPO_LIST>             
 ```
-
-Both C++ variants integrate all four functions. Runtime `--run-extcat`,
-`--run-init`, `--run-main`, and `--run-rearr` options select independent or
-chained execution; omitted options use `include/ProcessConfig.hpp`. Repeat
-`--dataset TARGET:PREFIX` for a sequential batch and repeat `--contains TOKEN`
-for OR-matched archive tokens; the same lists can be set as `DATASETS` and
-`CONTAINS` in `ProcessConfig.hpp`. In chained mode each generated absolute
-`expo_<target>.list` overrides external list input for that dataset.
-See [`CPP_GUIDE.md`](CPP_GUIDE.md) for the full C++ option and output contract.
 
 ---
 
@@ -159,7 +189,7 @@ Key files: `Dockerfile`, `compose.yaml`, `.env.example`, `scripts/verify-image.s
 `patches/`, `checksums.sha256`, `SOURCES.md`, `THIRD_PARTY_NOTICES.md`.
 
 
-### Quick start (f77)
+### Quick start
 
 ```bash
 cd f77_docker
@@ -185,24 +215,21 @@ Each Docker directory includes a verification script:
 
 ```bash
 bash f77_docker/scripts/verify-image.sh f77pipeline-dev:gnu4.8.5
-bash cpp_docker/scripts/verify-image.sh cpppipeline-dev:gxx12.3-openmpi4.1.8-pmi2
 ```
 
 For detailed Docker environment documentation, see:
 - [`f77_docker/README.md`](f77_docker/README.md) / [`f77_docker/README-CN.md`](f77_docker/README-CN.md)
-- [`cpp_docker/README.md`](cpp_docker/README.md) / [`cpp_docker/README-CN.md`](cpp_docker/README-CN.md)
-
 ---
 
 
 ## HPC Deployment
 
-Both Docker environments include `runner/` directories with Slurm/Apptainer
+Docker environments include `runner/` directories with Slurm/Apptainer
 deployment scripts. The typical workflow is:
 
 1. Pull the GHCR image and convert to a SIF:
    ```bash
-   bash f77_docker/runner/pull-sif.sh    # or cpp_docker/runner/pull-sif.sh
+   bash f77_docker/runner/pull-sif.sh    
    ```
 
 2. Configure the environment:
@@ -223,7 +250,4 @@ deployment scripts. The typical workflow is:
 
 For detailed HPC runner documentation, see:
 - [`f77_docker/runner/README.md`](f77_docker/runner/README.md) / [`f77_docker/runner/README-CN.md`](f77_docker/runner/README-CN.md)
-- [`cpp_docker/runner/README.md`](cpp_docker/runner/README.md) / [`cpp_docker/runner/README-CN.md`](cpp_docker/runner/README-CN.md)
-
 ---
-

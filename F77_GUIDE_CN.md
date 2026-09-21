@@ -17,6 +17,7 @@ Fortran 77（`f77` / `f77_Lite`）流水线的源码结构、参数、编译、D
 |---|---|
 | `main.f` | 主程序入口。初始化 MPI，读取曝光列表，分发流水线各阶段。 |
 | `para.inc` | 主参数文件。控制图像尺寸、阶段选择（`PROCESS_stage`）、星表路径、PSF 阶数、stamp 尺寸、阈值及星表列索引。 |
+| `path_layout.inc` | 完整 `f77/` 流水线使用的 WFST 兼容产品目录约定。 |
 | `cust_para.inc` | 自定义参数：CCD 几何尺寸与 PCA PSF 分解参数。 |
 | `sig_para.inc` | F6 mode-bar 噪声平面估计器参数。 |
 | `pre_process.f` | **阶段 1**：平场、掩膜处理、背景/噪声估计。 |
@@ -42,8 +43,9 @@ Fortran 77（`f77` / `f77_Lite`）流水线的源码结构、参数、编译、D
 
 #### `f77_Lite/` - 精简 Fortran 77 流水线
 
-文件集与 `f77/` 相同，但不含 `00_psf_module.f`（PCA PSF 重建已移除）。8 个编译期
-开关均冻结为生产取值，死代码分支已物理删除。
+文件集与 `f77/` 接近，但不含 `00_psf_module.f`（PCA PSF 重建已移除）。8 个编译期
+开关均冻结为生产取值，死代码分支已物理删除。下文的 WFST 兼容 I/O 迁移仅适用于
+`f77/`；`f77_Lite/` 继续使用原有 Legacy 目录结构。
 
 
 ## 流水线阶段
@@ -86,6 +88,26 @@ Fortran 77（`f77` / `f77_Lite`）流水线的源码结构、参数、编译、D
 > `ASTROMETRY_CAT`、`SOURCE_CAT`、`FLAT_PATH` 等路径必须与 Docker `.env` 文件中
 > 定义的容器挂载路径一致。
 
+`SOURCE_CAT_TILE_PREFIX` 控制外部源星表 tile 的 basename。默认值为 `extern_`，
+与 WFST initializer 和 `process_extcat` 保持一致。
+
+
+## 数据集结构
+
+```text
+<dataset>/
+├── science/<exposure>/<chip>.fits
+├── dqmask/<exposure>/<exposure>_<CCDNUM>.fits
+├── expolists/<exposure>.list
+├── astrometry/{Head,dat_Chk,dat_Astro}/...
+├── stamps/
+│   ├── {Norm,cat_Orig,dat_StarCanInfo,fits_StarCan}/<exposure>/...
+│   ├── {fits_StarCanN,fits_StarCanP,dat_SrcInfo,fits_Src}/<exposure>/...
+│   ├── {fits_Noise,fits_SrcP,dat_PsfFit,fits_PsfLocal}/<exposure>/...
+│   ├── {dat_Shear,dat_StarXY,fits_PsfResi}/<exposure>/...
+│   └── {dat_StarInfo,fits_StarP,fits_PsfSrc,dat_ExpoInfo}/...
+└── result/<exposure>_all.cat
+```
 
 ## 源码编译
 
@@ -107,22 +129,27 @@ make LAPACK_LIB_DIR=/path/to/lapack/lib \
      CFITSIO_LIB_DIR=/path/to/cfitsio/lib
 ```
 
+本次 I/O 迁移的本地验证环境为 GNU Fortran 15.2.0、Open MPI 5.0.10、
+CFITSIO 4.6.4 与 LAPACK/BLAS 3.11.0。现代 GNU Fortran 编译仓库既有 FFTPACK
+隐式参数接口时需要以下兼容覆盖：
+
+```bash
+export SCIENCE_PREFIX=/path/to/scientific-stack
+make FC=mpifort \
+     FFLAGS='-mcmodel=medium -w -fallow-argument-mismatch' \
+     LAPACK_LIB_DIR="$SCIENCE_PREFIX/lib" \
+     CFITSIO_LIB_DIR="$SCIENCE_PREFIX/lib"
+```
+
+生产集群应加载站点提供的 MPI/GNU Fortran、CFITSIO、LAPACK/BLAS modules，或使用
+仓库已记录的容器工具链；通用编译与运行说明保持相对路径，不依赖本机绝对路径。
+
 
 ### 运行流水线
 
 ```bash
 mpirun -np <N> ./Fourier_Quad_Pipe <EXPO_LIST>                 # Fortran
-mpirun -np <N> ./Fourier_Quad_Pipe --expo-list <EXPO_LIST>     # C++ Standard/Lite 仅主流程
-mpirun -np <N> ./Fourier_Quad_Pipe --run-main false --run-rearr true --expo-list <EXPO_LIST>
 ```
-
-两个 C++ 版本均已集成四个函数。运行时通过 `--run-extcat`、`--run-init`、
-`--run-main` 和 `--run-rearr` 选择独立或串联运行；省略参数时读取
-`include/ProcessConfig.hpp` 的默认值。重复传入 `--dataset TARGET:PREFIX`
-可顺序处理多个数据集，重复传入 `--contains TOKEN` 会按 OR 规则匹配归档；
-相同列表也可在 `ProcessConfig.hpp` 的 `DATASETS`、`CONTAINS` 中配置。
-串联模式会为每个数据集使用初始化器成功生成的 `expo_<target>.list`
-绝对路径，并覆盖外部列表参数。完整参数与输出约定见 [`CPP_GUIDE_CN.md`](CPP_GUIDE_CN.md)。
 
 ---
 
@@ -153,7 +180,7 @@ Docker 环境提供可复现的构建工具链，无需手动安装编译器和�
 `THIRD_PARTY_NOTICES.md`。
 
 
-### 快速开始（f77）
+### 快速开始
 
 ```bash
 cd f77_docker
@@ -179,23 +206,21 @@ mpirun -np 4 ./Fourier_Quad_Pipe /data/DataProcess/expo_list.list
 
 ```bash
 bash f77_docker/scripts/verify-image.sh f77pipeline-dev:gnu4.8.5
-bash cpp_docker/scripts/verify-image.sh cpppipeline-dev:gxx12.3-openmpi4.1.8-pmi2
 ```
 
 Docker 环境详细文档请参见：
 - [`f77_docker/README.md`](f77_docker/README.md) / [`f77_docker/README-CN.md`](f77_docker/README-CN.md)
-- [`cpp_docker/README.md`](cpp_docker/README.md) / [`cpp_docker/README-CN.md`](cpp_docker/README-CN.md)
 
 ---
 
 
 ## HPC 部署
 
-两套 Docker 环境均包含 `runner/` 目录，提供 Slurm/Apptainer 部署脚本。典型流程：
+Docker 环境包含 `runner/` 目录，提供 Slurm/Apptainer 部署脚本。典型流程：
 
 1. 拉取 GHCR 镜像并转换为 SIF：
    ```bash
-   bash f77_docker/runner/pull-sif.sh    # 或 cpp_docker/runner/pull-sif.sh
+   bash f77_docker/runner/pull-sif.sh   
    ```
 
 2. 配置环境：
@@ -216,7 +241,5 @@ Docker 环境详细文档请参见：
 
 HPC runner 详细文档请参见：
 - [`f77_docker/runner/README.md`](f77_docker/runner/README.md) / [`f77_docker/runner/README-CN.md`](f77_docker/runner/README-CN.md)
-- [`cpp_docker/runner/README.md`](cpp_docker/runner/README.md) / [`cpp_docker/runner/README-CN.md`](cpp_docker/runner/README-CN.md)
 
 ---
-

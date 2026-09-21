@@ -26,6 +26,7 @@ c ==========================================
       subroutine get_expo_info(IMAGE_FILE,nchip,DIR_OUTPUT,para)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip
       real para(6)
@@ -36,13 +37,15 @@ c ==========================================
       real FWHM,e1,e2,chi_d
       real FWHM_AVE,chi_d_AVE,nstar_AVE,cRVAL1,cRVAL2
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      fstar=trim(DIR_OUTPUT)
-     .//'/stamps/'//trim(PREFIX)//'_star_info_expo.dat'
-      fastro=trim(DIR_OUTPUT)
-     .//'/astrometry/'//trim(PREFIX)//'.head'
-      fexpo=trim(DIR_OUTPUT)
-     .//'/result/'//trim(PREFIX)//'_expo_info.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_STAR_INFO,
+     .  '_star_info_expo.dat',fstar)
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_HEAD,
+     .  '.head',fastro)
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_EXPO_INFO,
+     .  '_expo_info.dat',fexpo)
 
       open(unit=10,file=fexpo,status='replace')
       rewind 10

@@ -4,6 +4,7 @@
       save
 
       include 'para.inc'
+      include 'path_layout.inc'
       include 'cust_para.inc'
 
       double precision, allocatable :: global_components(:,:,:) 
@@ -14,6 +15,10 @@
 
       contains
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Load dataset-global PCA PSF products on all ranks
+c Method: Read rank zero once, then broadcast the aligned stored arrays
+c ==========================================
       subroutine init_and_load_all_psf(dir_output, my_rank)
       use mpi
       character*(*), intent(in) :: dir_output
@@ -48,7 +53,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
          do i_ccd = 1, Camera_ccd_num
             if (i_ccd .eq. 2 .or. i_ccd .eq. 61) cycle
              write(c_chip, '(I2.2)') i_ccd
-             filename = trim(dir_output)//'/dat_pcs/'
+             filename = trim(dir_output)//'/'//trim(DIR_PCS)//'/'
      .                //'pcs_ccd'//trim(c_chip)//'.dat'
              
              open(unit=30, file=filename, status='old', action='read',
@@ -74,7 +79,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
                do by = 1, nblocks
                 write(c_bx, '(I1.1)') bx
                 write(c_by, '(I1.1)') by
-                filename = trim(dir_output)//'/dat_pcs/'//'coeff_ccd'// 
+                filename = trim(dir_output)//'/'//trim(DIR_PCS)//'/'
+     .             //'coeff_ccd'//
      .             trim(c_chip)//'_'//trim(c_bx)//trim(c_by)//'.dat'
                 open(unit=20, file=filename, status='old', 
      .                action='read', iostat=ierror)

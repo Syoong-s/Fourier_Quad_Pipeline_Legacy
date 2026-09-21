@@ -373,6 +373,10 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build external source-catalog tile paths
+c Method: Prefix sky-tile basenames with the configured shared value
+c ==========================================
       subroutine generate_gal_cat_file_name(cRVAL,filename
      .,sortfile,sortnum)
       implicit none
@@ -387,7 +391,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       integer ra1,ra2
       integer ra,dec,sortnum,mra,mdec
 
-      filename = trim(filename)//'/des_y6_'
+      filename=trim(filename)//'/'//trim(SOURCE_CAT_TILE_PREFIX)
 
       m_dec=1.0d0
       ! first judge the dec
@@ -506,6 +510,134 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
      .stop 'Image_file name is NOT normal !'
 
       PREFIX=imagefile(p_slash+1:p_dot-1)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Copy one constructed path into a caller-owned buffer
+c Method: Reject empty or overlong paths before assignment can truncate
+c ==========================================
+      subroutine fq_assign_path(fullpath,filename)
+      implicit none
+
+      character*(*) fullpath,filename
+      integer nchar
+
+      nchar=len_trim(fullpath)
+      if (nchar.le.0 .or. nchar.gt.len(filename)) then
+        write(*,*) 'Error / F77 path exceeds output buffer:'
+        write(*,*) trim(fullpath)
+        stop 'F77 path construction failed'
+      endif
+      filename=' '
+      filename=fullpath(1:nchar)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build one C++-layout chip-product path
+c Method: Add product directory, exposure directory, chip prefix, suffix
+c ==========================================
+      subroutine fq_chip_product_path(image_file,dir_output
+     .,product_dir,suffix,filename)
+      implicit none
+
+      character*(*) image_file,dir_output,product_dir,suffix,filename
+      character*512 prefix,prefix_expo
+      character*2048 fullpath
+
+      call get_PREFIX(image_file,prefix)
+      call get_PREFIX_expo(image_file,prefix_expo)
+      fullpath=trim(dir_output)//'/'//trim(product_dir)//'/'
+     .//trim(prefix_expo)//'/'//trim(prefix)//trim(suffix)
+      call fq_assign_path(fullpath,filename)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build one C++-layout exposure-product path
+c Method: Join dataset, product directory, exposure basename, and suffix
+c ==========================================
+      subroutine fq_expo_product_path(image_file,dir_output
+     .,product_dir,suffix,filename)
+      implicit none
+
+      character*(*) image_file,dir_output,product_dir,suffix,filename
+      character*512 prefix_expo
+      character*2048 fullpath
+
+      call get_PREFIX_expo(image_file,prefix_expo)
+      fullpath=trim(dir_output)//'/'//trim(product_dir)//'/'
+     .//trim(prefix_expo)//trim(suffix)
+      call fq_assign_path(fullpath,filename)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build a synthetic exposure-plus-CCD product path
+c Method: Use physical CCD identity below the exposure product directory
+c ==========================================
+      subroutine fq_expo_ccd_product_path(image_file,dir_output
+     .,product_dir,ccd_id,suffix,filename)
+      implicit none
+
+      character*(*) image_file,dir_output,product_dir,suffix,filename
+      integer ccd_id
+      character*512 prefix_expo
+      character*12 ccd_text
+      character*2048 fullpath
+
+      call get_PREFIX_expo(image_file,prefix_expo)
+      write(ccd_text,'(I12)') ccd_id
+      ccd_text=adjustl(ccd_text)
+      fullpath=trim(dir_output)//'/'//trim(product_dir)//'/'
+     .//trim(prefix_expo)//'/'//trim(prefix_expo)//'_'
+     .//trim(ccd_text)//trim(suffix)
+      call fq_assign_path(fullpath,filename)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build a dataset-global product path
+c Method: Join dataset root, product directory, and explicit basename
+c ==========================================
+      subroutine fq_base_product_path(dir_output,product_dir
+     .,basename,filename)
+      implicit none
+
+      character*(*) dir_output,product_dir,basename,filename
+      character*2048 fullpath
+
+      fullpath=trim(dir_output)//'/'//trim(product_dir)//'/'
+     .//trim(basename)
+      call fq_assign_path(fullpath,filename)
+
+      return
+      end
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Find the final nonblank list-record character
+c Method: Treat spaces, TAB, and carriage return as trailing whitespace
+c ==========================================
+      integer function fq_record_length(record)
+      implicit none
+
+      character*(*) record
+      integer i,code
+
+      fq_record_length=0
+      do i=len(record),1,-1
+        code=ichar(record(i:i))
+        if (code.ne.32 .and. code.ne.9 .and. code.ne.13) then
+          fq_record_length=i
+          return
+        endif
+      enddo
 
       return
       end
@@ -901,26 +1033,39 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       implicit none
       include 'para.inc'
 
+c ==========================================
+c Function: Load one C++ process_init per-exposure chip list
+c Method: Ignore blank records, bound paths/chips, derive dataset root
+c ==========================================
+
       integer iexpo,nchip
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
       character*(strl) EXPO_FILE(NMAX_EXPO),filename
+      character*2048 record
       integer N_EXPO
       common /filename_pass/ EXPO_FILE,N_EXPO
-      integer ierr
+      integer ierr,nchar,fq_record_length
 
       nchip=0
       open(unit=10,file=EXPO_FILE(iexpo),status='old',iostat=ierr)
-      rewind 10
       if (ierr.ne.0) stop 'EXPO_FILE reading error!!'
-      do while (ierr.ge.0)
-        read(10,'(A)',iostat=ierr) filename
-        if (ierr.lt.0) cycle
+      rewind 10
+      do
+        read(10,'(A)',iostat=ierr) record
+        if (ierr.lt.0) exit
+        if (ierr.gt.0) stop 'EXPO_FILE record reading error!!'
+        nchar=fq_record_length(record)
+        if (nchar.eq.0) cycle
+        if (nchar.gt.strl) stop 'Chip path exceeds F77 strl'
+        if (nchip.ge.NMAX_CHIP) stop 'Too many chips in EXPO_FILE'
         nchip=nchip+1
-        IMAGE_FILE(nchip)=filename
+        IMAGE_FILE(nchip)=' '
+        IMAGE_FILE(nchip)=record(1:nchar)
       enddo
       close(10)
 
-      call get_dir(IMAGE_FILE(1),DIR_OUTPUT,2)
+      if (nchip.le.0) stop 'EXPO_FILE contains no chip paths'
+      call get_dir(IMAGE_FILE(1),DIR_OUTPUT,3)
 
       return
       end

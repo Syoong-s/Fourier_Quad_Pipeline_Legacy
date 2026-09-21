@@ -13,10 +13,15 @@
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Transform source stamps for one exposure
+c Method: Read split source products and write source power by chip
+c ==========================================
       subroutine expo_Fourier_T_st2(nchip,IMAGE_FILE,DIR_OUTPUT
      .                                                  ,chipnx,chipny)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
 
@@ -40,12 +45,11 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       common /pc_pass/ pc
 
       do ichip=1,nchip    
-        call get_PREFIX(IMAGE_FILE(ichip),PREFIX)
-        PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-
 c------------------------------------------------------------------
         nsource=0
-        filename=trim(PREFIX)//'_source_info.dat'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SRC_INFO,
+     .    '_source_info.dat',filename)
         open(unit=10,file=filename,status='old',iostat=ierror)
         rewind 10
         if (ierror.ne.0) then
@@ -69,11 +73,15 @@ c     .,'half_light_flux half_light_area flag'
 
         nn1=ns*len_g
         nn2=ns*(int(nsource/len_g)+1)
-        filename=trim(PREFIX)//'_source.fits'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SRC,
+     .    '_source.fits',filename)
         call read_stamps(ngal_max,1,nsource,ns,ns
      .,source_coll,nn1,nn2,filename)
 
-        filename=trim(PREFIX)//'_noise.fits'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_NOISE,
+     .    '_noise.fits',filename)
         call read_stamps(ngal_max,1,nsource,ns,ns
      .,noise_coll,nn1,nn2,filename)
 
@@ -100,7 +108,9 @@ c     .,'half_light_flux half_light_area flag'
           enddo
         enddo
 
-991     filename=trim(PREFIX)//'_source_info.dat'
+991     call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SRC_INFO,
+     .    '_source_info.dat',filename)
         open(unit=10,file=filename,status='replace')
         rewind 10
         write(10,*) 'ig xp yp sigma peak imax jmax '
@@ -113,7 +123,9 @@ c     .,'half_light_flux half_light_area flag'
 
           nn1=ns*len_g
           nn2=ns*(int(nsource/len_g)+1)
-          filename=trim(PREFIX)//'_source_p.fits'
+          call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SRC_P,
+     .      '_source_p.fits',filename)
           call write_stamps(ngal_max,1,nsource,ns,ns
      .,power_coll,nn1,nn2,filename)
         else
@@ -124,4 +136,3 @@ c     .,'half_light_flux half_light_area flag'
       return
       end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
