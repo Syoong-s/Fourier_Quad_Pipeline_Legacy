@@ -13,6 +13,7 @@
       real expo_para(6,NMAX_EXPO),expo_para_t(6,NMAX_EXPO)
       common /expo_para_pass/ expo_para
       integer iexpo,i,j,rng_seed
+      integer nargs,arg_len,arg_status
 
       external pre_process,proc_astrometry,proc_source,proc_comb
       external proc_FourierT_st1,proc_FourierT_st2
@@ -31,7 +32,21 @@ c ==========================================
       ! my_id = 0,1,...,num_procs-1
       call MPI_BARRIER(MPI_cOMM_WORLD, ierr ) ! synchronize all nodes
 
-      call getarg(1,EXPO_LIST)
+c ==========================================
+c Function: Read the exposure-list argument without silent truncation
+c Method: Validate argument count, status, and buffer capacity
+c ==========================================
+      nargs=command_argument_count()
+      if (nargs.lt.1) then
+        if (my_id.eq.0) write(*,*) 'Usage: Fourier_Quad_Pipe ',
+     .    '<exposure-list>'
+        call MPI_Abort(MPI_cOMM_WORLD,1,ierr)
+      endif
+      call get_command_argument(1,EXPO_LIST,arg_len,arg_status)
+      if (arg_status.ne.0.or.arg_len.gt.strl) then
+        if (my_id.eq.0) write(*,*) 'Invalid exposure-list path.'
+        call MPI_Abort(MPI_cOMM_WORLD,1,ierr)
+      endif
       ! ----------------------------------------------------------------------------
       if (my_id.eq.0) call initialize(EXPO_LIST)
       call MPI_Bcast(N_EXPO,1,mpi_int,0,MPI_cOMM_WORLD,ierr)
@@ -121,24 +136,53 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       integer N_EXPO
       common /filename_pass/ EXPO_FILE,N_EXPO
 
-      character*(strl) expo_name
-      integer ierror,nchip
+      character*2048 record,expo_name_long
+      integer ierror,nchip,nchar
+      integer fq_record_length
 
       N_EXPO=0
 
       open(unit=10,file=EXPO_LIST,status='old',iostat=ierror)
-      rewind 10
       if (ierror.ne.0) then
         write(*,*) 'EXPO_LIST reading error!!'
         stop
       endif
-      do while (ierror.ge.0)
-        read(10,*,iostat=ierror) expo_name,nchip
-        if (ierror.lt.0) cycle
+      rewind 10
+c ==========================================
+c Function: Load valid exposure-list records into the shared file table
+c Method: Skip blanks and reject malformed, long, or excess entries
+c ==========================================
+      do
+        read(10,'(A)',iostat=ierror) record
+        if (ierror.lt.0) exit
+        if (ierror.gt.0) then
+          write(*,*) 'EXPO_LIST record reading error!!'
+          stop
+        endif
+        nchar=fq_record_length(record)
+        if (nchar.eq.0) cycle
+        expo_name_long=' '
+        read(record(1:nchar),*,iostat=ierror) expo_name_long,nchip
+        if (ierror.ne.0) then
+          write(*,*) 'Malformed EXPO_LIST record: ',record(1:nchar)
+          stop
+        endif
+        if (len_trim(expo_name_long).gt.strl) then
+          write(*,*) 'Exposure-list path is too long.'
+          stop
+        endif
+        if (N_EXPO.ge.NMAX_EXPO) then
+          write(*,*) 'Too many exposures; increase NMAX_EXPO.'
+          stop
+        endif
         N_EXPO=N_EXPO+1
-        EXPO_FILE(N_EXPO)=trim(expo_name)
+        EXPO_FILE(N_EXPO)=trim(expo_name_long)
       enddo
       close(10)
+      if (N_EXPO.eq.0) then
+        write(*,*) 'EXPO_LIST contains no exposure records.'
+        stop
+      endif
       write(*,*) 'Total number of EXPOSURE: ',N_EXPO
 
 

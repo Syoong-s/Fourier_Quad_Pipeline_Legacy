@@ -5,7 +5,7 @@
       integer npx,npy,strl
       parameter (npx=3000)
       parameter (npy=5000)
-      parameter (strl=150)
+      parameter (strl=512)
 
 c ==========================================
 c f77_lite: the following build-time branch selectors of the full
@@ -14,7 +14,7 @@ c the sources.  They no longer exist as parameters; the code implements
 c exactly one behaviour each:
 c   ASTROMETRY_trivial = 0  -> Gaia-based astrometry only
 c   include_FLAT       = 0  -> no super-flat multiplication
-c   include_Mask       = 2  -> per-chip DQ mask from DIR_OUTPUT/dqmask
+c   include_Mask       = 2  -> per-chip DQ mask from DIR_DQ/<exposure>
 c   ext_cat            = 1  -> external (SOURCE_CAT) source catalogue
 c   ext_PSF            = 0  -> PSF measured from the stars of the frame
 c   deblending         = 1  -> de-blending always applied
@@ -27,6 +27,8 @@ c ==========================================
 
 
       character*200 ASTROMETRY_CAT,SOURCE_CAT
+      character*16 SOURCE_CAT_TILE_PREFIX
+      parameter (SOURCE_CAT_TILE_PREFIX='extern_')
       parameter (ASTROMETRY_CAT
      .='/lustre/home/acct-phyzj/phyzj/jzhang/gaia/gaia_cat_sorted')
 
@@ -149,6 +151,3 @@ c	parameter (g2_c=-0.)
       real chi2_thresh
       parameter (chi2_thresh=0.01)
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-
-

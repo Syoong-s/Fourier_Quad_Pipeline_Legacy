@@ -14,9 +14,14 @@
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\
+c ==========================================
+c Function: Transform one chip's star-candidate stamps
+c Method: Read split products and write power stamps with helpers
+c ==========================================
       subroutine chip_process_Fourier_T_st1(IMAGE_FILE,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       character*(strl) IMAGE_FILE,DIR_OUTPUT
 
@@ -36,11 +41,11 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\
       real aa(npara)
 
 c-------------------------------------------------------------------
-      call get_PREFIX(IMAGE_FILE,PREFIX)
-      PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
 c-------------------------------------------------------------------
       nsource=0
-      filename=trim(PREFIX)//'_star_can_info.dat'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN_INFO,
+     .  '_star_can_info.dat',filename)
       open(unit=10,file=filename,status='old',iostat=ierror)
       rewind 10
       if (ierror.ne.0) then
@@ -60,11 +65,15 @@ c      read(10,*) 'ig xp yp SNR'
       if (nsource.gt.0) then 
         nn1=ns*len_s
         nn2=ns*(int(nsource/len_s)+1)
-        filename=trim(PREFIX)//'_star_can.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN,
+     .    '_star_can.fits',filename)
         call read_stamps(ngal_max,1,nsource,ns,ns
      .,source_coll,nn1,nn2,filename)
 
-        filename=trim(PREFIX)//'_star_can_noise.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN_N,
+     .    '_star_can_noise.fits',filename)
         call read_stamps(ngal_max,1,nsource,ns,ns
      .,noise_coll,nn1,nn2,filename)
 
@@ -95,7 +104,9 @@ c          enddo
 c        enddo
         enddo
 
-        filename=trim(PREFIX)//'_star_can_power.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN_P,
+     .    '_star_can_power.fits',filename)
         nn1=ns*len_s
         nn2=ns*(int(nsource/len_s)+1)
         call write_stamps(ngal_max,1,nsource,ns,ns
@@ -109,7 +120,7 @@ c      call write_stamps(ngal_max,1,nsource,ns,ns
 c     .,power_ori_coll,nn1,nn2,filename)
 
 c----------------------------------------------------
-      ! write(*,*) trim(PREFIX),nsource
+      ! write(*,*) trim(IMAGE_FILE),nsource
 
 
 

@@ -15,7 +15,7 @@ SOURCES := $(sort $(wildcard *.f))
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES) para.inc cust_para.inc sig_para.inc
+$(TARGET): $(SOURCES) para.inc cust_para.inc sig_para.inc path_layout.inc
 	$(FC) $(SOURCES) -o $@ $(FFLAGS) $(LDFLAGS) $(LDLIBS)
 
 clean:

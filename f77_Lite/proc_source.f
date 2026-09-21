@@ -13,9 +13,14 @@
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Build Stage-3 source and star products for one chip
+c Method: Route every producer and consumer through checked layout paths
+c ==========================================
       subroutine chip_process_source(IMAGE_FILE,ichip,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
 c ==========================================
 c Function: Process one lite source chip or reject a failed norm chip
@@ -47,10 +52,9 @@ c ==========================================
       ngal=0
 
       call readimage(IMAGE_FILE(ichip),nx,ny,npx,npy,array)
-      call get_PREFIX(IMAGE_FILE(ichip),PREFIX)
-
-      PREFIX=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-      filename=trim(PREFIX)//'_norm.fits'
+      call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_NORM,
+     .  '_norm.fits',filename)
       call readimage(filename,nx,ny,npx,npy,normap)
       if (normap(1,1).ge.0. .or. normap(1,1).lt.(-99990.)
      .    .or. normap(1,1).ne.normap(1,1)) then
@@ -92,12 +96,13 @@ c ==========================================
       endif
 
 c------------------------------------------------------
-      call get_expo_catalog(PREFIX,nx,ny,sigmap,weight,normap   
+      call get_expo_catalog(IMAGE_FILE(ichip),DIR_OUTPUT,nx,ny,sigmap,
+     .  weight,normap
      .,proc_error)
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX_head)
-      filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX_head)//'.head'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_HEAD,
+     .  '.head',filename)
       call read_astrometry_para(filename,ichip
      .,cRPIX,cD,cRVAL,PU,npd,proc_error)
 
@@ -110,10 +115,11 @@ c------------------------------------------------------
      .,weight,cRPIX,cD,cRVAL,PU,proc_error)
 
       call gen_source_ext_catalog(sortfile,sortnum
-     .,PREFIX,nx,ny,array,weight,sigmap,cRPIX,cD,cRVAL,PU
+     .,IMAGE_FILE(ichip),DIR_OUTPUT,nx,ny,array,weight,sigmap,
+     .cRPIX,cD,cRVAL,PU
      .,ngal,proc_error)
 
-      call gen_star_candidate_direct(PREFIX
+      call gen_star_candidate_direct(IMAGE_FILE(ichip),DIR_OUTPUT
      .,nx,ny,array,weight,nstar,proc_error)
 
 
@@ -253,12 +259,18 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine get_expo_catalog(PREFIX,nx,ny,sigmap
+c ==========================================
+c Function: Detect sources and write the chip detection catalog
+c Method: Preserve detection logic while routing the catalog by product
+c ==========================================
+      subroutine get_expo_catalog(IMAGE_FILE,DIR_OUTPUT,nx,ny,sigmap
      .,weight,normap,ierror)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
-      character*(strl) catname,PREFIX
+      character*(*) IMAGE_FILE,DIR_OUTPUT
+      character*(strl) catname
       integer nx,ny,ierror
       real sigmap(npx,npy),normap(npx,npy)
       integer weight(npx,npy),mark(npx,npy)
@@ -282,7 +294,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         enddo
       enddo
 
-      catname=trim(PREFIX)//'.cat'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_CAT_ORIG,
+     .  '.cat',catname)
 
       open(unit=10,file=catname,status='replace')
       rewind 10
@@ -398,14 +412,21 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine gen_source_ext_catalog(sortfile,sortnum,PREFIX
+c ==========================================
+c Function: Extract externally cataloged source stamps
+c Method: Read external rows and split all generated chip products
+c ==========================================
+      subroutine gen_source_ext_catalog(sortfile,sortnum,IMAGE_FILE,
+     .DIR_OUTPUT
      .,nx,ny,array,weight,sigmap,cRPIX,cD,cRVAL,PU,ngal,proc_error)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
 c      The purpose of this subroutine to extract sources from an existing external catalog.
 
-      character*(strl) sortfile(27),filename,PREFIX
+      character*(strl) sortfile(27),filename
+      character*(*) IMAGE_FILE,DIR_OUTPUT
       integer n,sortnum
       integer ierror,flag,ngal,proc_error
 
@@ -516,16 +537,22 @@ c      The purpose of this subroutine to extract sources from an existing extern
 40    if (ngal.gt.0) then
         nn1=ns*len_g
         nn2=ns*(int(ngal/len_g)+1)
-        filename=trim(PREFIX)//'_source.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_SRC,
+     .    '_source.fits',filename)
         call write_stamps(ngal_max,1,ngal,ns,ns
      .,source_collect,nn1,nn2,filename)
 
-        filename=trim(PREFIX)//'_noise.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_NOISE,
+     .    '_noise.fits',filename)
         call write_stamps(ngal_max,1,ngal,ns,ns
      .,noise_collect,nn1,nn2,filename)
       endif
 
-      filename=trim(PREFIX)//'_source_info.dat'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_SRC_INFO,
+     .  '_source_info.dat',filename)
       open(unit=10,file=filename,status='replace')
       rewind 10
       write(10,*) 'ig xp yp sigma peak imax '
@@ -536,7 +563,9 @@ c      The purpose of this subroutine to extract sources from an existing extern
       close(10)
 
       orighead = 0
-      filename=trim(PREFIX)//'_orig.cat'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_CAT_ORIG,
+     .  '_orig.cat',filename)
       open(unit=15,file=filename,status='replace')
       rewind 15
       if (proc_error.eq.1 .or. ngal.eq.0) then
@@ -785,12 +814,19 @@ c/////////To decorate the image\\\\\\\\\\\\\\\\
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine gen_star_candidate_direct(PREFIX,nx,ny,array,weight
+c ==========================================
+c Function: Extract star candidates directly from the image
+c Method: Read the aligned catalog and write split candidate products
+c ==========================================
+      subroutine gen_star_candidate_direct(IMAGE_FILE,DIR_OUTPUT,nx,ny,
+     .array,weight
      .,nstar,proc_error)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
-      character*(strl) catname,filename,PREFIX
+      character*(*) IMAGE_FILE,DIR_OUTPUT
+      character*(strl) catname,filename
       integer ierror,flag,proc_error,nstar
 
       integer nx,ny
@@ -816,7 +852,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       if (proc_error.eq.1) goto 40
 
-      catname=trim(PREFIX)//'.cat'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_CAT_ORIG,
+     .  '.cat',catname)
 
       open(unit=10,file=catname,status='old',iostat=ierror)
       rewind 10
@@ -866,7 +904,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       enddo
       close(10)
 
-40    filename=trim(PREFIX)//'_star_can_info.dat'
+40    call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN_INFO,
+     .  '_star_can_info.dat',filename)
       open(unit=20,file=filename,status='replace')
       rewind 20
       write(20,*) 'ig xp yp SNR'
@@ -876,13 +916,17 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       close(20)
 
       if (nstar.gt.0) then
-        filename=trim(PREFIX)//'_star_can.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN,
+     .    '_star_can.fits',filename)
         nn1=ns*len_s
         nn2=ns*(int(nstar/len_s)+1)
         call write_stamps(ngal_max,1,nstar,ns,ns
      .,source_coll,nn1,nn2,filename)
 
-        filename=trim(PREFIX)//'_star_can_noise.fits'
+        call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_STAR_CAN_N,
+     .    '_star_can_noise.fits',filename)
         nn1=ns*len_s
         nn2=ns*(int(nstar/len_s)+1)
         call write_stamps(ngal_max,1,nstar,ns,ns

@@ -18,13 +18,18 @@
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine chip_pre_process(IMAGE_FILE,DIR_OUTPUT,cid)
+c ==========================================
+c Function: Preprocess one Lite chip through Stage 1
+c Method: Preserve Lite numerics while routing products by layout
+c ==========================================
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
       include 'sig_para.inc'
 
       character*(*) IMAGE_FILE,DIR_OUTPUT
       integer proc_error
-      character*(strl) PREFIX,filename,catfile,PREFIX_e
+      character*(strl) filename,catfile
 
       integer nx,ny
       real array(npx,npy),normap(npx,npy)
@@ -44,9 +49,6 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       real flat_weight(npx,npy)
 
       integer cid
-      character*(2) c_chip
-
-
       proc_error=0
       do i=1,2
         do j=1,3
@@ -73,10 +75,9 @@ c ==========================================
 c Function: Apply the DQ mask before astrometry and defect merging
 c ==========================================
       if (proc_error.eq.0) then
-        write(c_chip,'(I2)') cid
-        call get_PREFIX_expo(IMAGE_FILE,PREFIX_e)
-        MASK_FILE=trim(DIR_OUTPUT)//'/dqmask/'//trim(PREFIX_e)
-     .  //'_'//trim(adjustl(c_chip))//'.fits'
+        call fq_expo_ccd_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_DQ,cid,
+     .    '.fits',MASK_FILE)
         call readimage(MASK_FILE,nxx,nyy,npx,npy,flat_weight)
         if (flat_weight(1,1).lt.(-99990.0)) then
           write(*,*) 'Error / cant find mask file!'
@@ -135,9 +136,9 @@ c------------------------------------------------------
 
 
 c--------------------------------------------------------------
-      call get_PREFIX(IMAGE_FILE,PREFIX)
-      filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX)//'_astro.dat'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_ASTRO_DATA,
+     .  '_astro.dat',filename)
       catfile=ASTROMETRY_cAT
       call generate_gaia_file_name(cRVAL,catfile,proc_error)
       call gen_astrometry_data(catfile,nx,ny,npx,npy
@@ -177,8 +178,9 @@ c Serialize the final combined saturation, DQ, and detected-defect mask.
         enddo
       enddo
 
-      filename=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-     .//'_norm.fits'
+      call fq_chip_product_path(IMAGE_FILE,DIR_OUTPUT,
+     .  DIR_NORM,
+     .  '_norm.fits',filename)
       call writeimage_copyhdu(IMAGE_FILE,filename
      .,nx,ny,npx,npy,normap)
 

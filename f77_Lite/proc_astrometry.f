@@ -12,9 +12,14 @@
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Refine and validate exposure astrometry
+c Method: Consume aligned chip data and write head and check products
+c ==========================================
       subroutine chip_process_astrometry(IMAGE_FILE,nchip,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
@@ -27,9 +32,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       call get_astrometry(IMAGE_FILE,nchip,DIR_OUTPUT)
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX)//'_check.dat'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_CHECK,
+     .  '_check.dat',filename)
 
       open(unit=50,file=trim(filename),status='replace')
       rewind 50
@@ -37,22 +42,22 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       do ichip=1,nchip
         proc_error=0
 
-        call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-        filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX)//'.head'
+        call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_HEAD,
+     .    '.head',filename)
 
         call read_astrometry_para(filename,ichip    
      .,cRPIX,cD,cRVAL,PU,npd,proc_error)
 
         if (proc_error.eq.0) then
 
-          call get_PREFIX(IMAGE_FILE(ichip),PREFIX)
-          filename=trim(DIR_OUTPUT)//'/stamps/'
-     .//trim(PREFIX)//'_norm.fits'
+          call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_NORM,
+     .      '_norm.fits',filename)
           call update_para(filename,cRPIX,cD)
 
-          filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX)//'_astro.dat'
+          call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .      DIR_ASTRO_DATA,'_astro.dat',filename)
           open(unit=40,file=trim(filename),status='old')
           rewind 40
           read(40,*)
@@ -74,9 +79,14 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       END
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Fit the exposure astrometry solution
+c Method: Read aligned chip matches and write the exposure head product
+c ==========================================
       subroutine get_astrometry(IMAGE_FILE,nchip,DIR_OUTPUT)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
       integer nchip
       character*(strl) IMAGE_FILE(NMAX_cHIP),DIR_OUTPUT
@@ -98,9 +108,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       do ichip=1,nchip
 
-        call get_PREFIX(IMAGE_FILE(ichip),PREFIX)
-        filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX)//'_astro.dat'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .    DIR_ASTRO_DATA,'_astro.dat',filename)
 
         open(unit=10,file=filename,status='old')
         rewind 10
@@ -136,9 +145,9 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       endif
 
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX)
-      filename=trim(DIR_OUTPUT)//'/astrometry/'
-     .//trim(PREFIX)//'.head'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_HEAD,
+     .  '.head',filename)
       open(unit=10,file=filename,status='replace')
       rewind 10
       write(10,*) cRVAL2(1),cRVAL2(2)

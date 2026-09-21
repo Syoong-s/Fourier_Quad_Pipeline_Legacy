@@ -46,9 +46,7 @@ the C++ pipeline see [`README.md`](README.md) and [`CPP_GUIDE.md`](CPP_GUIDE.md)
 
 Closely follows `f77/`, but `00_psf_module.f` is absent (PCA PSF
 reconstruction is removed). All eight compile-time switches are frozen to
-production values and dead-code branches are physically removed. The
-WFST-compatible I/O migration documented below applies to `f77/`; `f77_Lite/`
-continues to use its existing legacy layout.
+production values and dead-code branches are physically removed.
 
 
 ## Pipeline Stages
@@ -114,7 +112,6 @@ Its default is `extern_`, matching the WFST initializer and `process_extcat`.
 │   └── {dat_StarInfo,fits_StarP,fits_PsfSrc,dat_ExpoInfo}/...
 └── result/<exposure>_all.cat
 ```
-
 
 ## Building from Source
 

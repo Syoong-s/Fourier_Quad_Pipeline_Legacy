@@ -13,9 +13,14 @@
       return
       end
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c ==========================================
+c Function: Measure Fourier_Quad shear for one exposure
+c Method: Read aligned PSF/source products and write chip shear catalogs
+c ==========================================
       subroutine expo_shear(nchip,IMAGE_FILE,DIR_OUTPUT,chipnx,chipny)
       implicit none
       include 'para.inc'
+      include 'path_layout.inc'
 
 
       integer ichip,nchip
@@ -41,16 +46,15 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       proc_error=0
 
-      call get_PREFIX_expo(IMAGE_FILE(1),PREFIX_expo)
-      headname=trim(DIR_OUTPUT)//'/astrometry/'//trim(PREFIX_expo)
-     .//'.head'
+      call fq_expo_product_path(IMAGE_FILE(1),DIR_OUTPUT,
+     .  DIR_ASTRO_HEAD,
+     .  '.head',headname)
 
       do ichip=1,nchip
         proc_error=0
-        call get_PREFIX(IMAGE_FILE(ichip),PREFIX)
-        PREFIX1=trim(DIR_OUTPUT)//'/stamps/'//trim(PREFIX)
-        PREFIX2=trim(DIR_OUTPUT)//'/result/'//trim(PREFIX)
-        filename=trim(PREFIX1)//'_PSF_coe_local.dat'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_PSF_FIT,
+     .    '_PSF_coe_local.dat',filename)
         open(unit=10,file=filename,status='old',iostat=ierror)
         rewind 10
         read(10,*) nstar,status,poly_ave,poly_std
@@ -77,7 +81,9 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         endif
 
         ngal=0
-        filename=trim(PREFIX1)//'_source_info.dat'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SRC_INFO,
+     .    '_source_info.dat',filename)
         open(unit=10,file=filename,status='old',iostat=ierror)
         rewind 10
         if (ierror.ne.0) then
@@ -102,11 +108,15 @@ c        read(10,*) 'ig xc yc sigma peak imax jmax half_light_flux half_light_ar
 
         nn1=ns*len_g
         nn2=ns*(int(ngal/len_g)+1)
-        filename=trim(PREFIX1)//'_source_p.fits'
+        call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SRC_P,
+     .    '_source_p.fits',filename)
         call read_stamps(ngal_max,1,ngal,ns,ns,gal_p_coll
      .,nn1,nn2,filename)
 
-50      filename=trim(PREFIX2)//'_shear.dat'
+50      call fq_chip_product_path(IMAGE_FILE(ichip),DIR_OUTPUT,
+     .  DIR_SHEAR,
+     .    '_shear.dat',filename)
         open(unit=10,file=filename,status='replace')
         rewind 10
         write(10,*) 'poly_chi2 xc yc sigma nstar imax jmax ' 
@@ -382,5 +392,3 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       return
       end
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-
